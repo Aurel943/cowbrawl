@@ -141,6 +141,11 @@ public class GameManager {
                 .replace("{joueurs}", String.valueOf(nb))
                 .replace("{max}", String.valueOf(max)));
 
+        int min = plugin.getConfig().getInt("game.min-joueurs", 2);
+        if (nb < min) {
+            joueur.sendMessage(getMessage("prefix") + getMessage("lobby.pas-assez-joueurs")
+                    .replace("{min}", String.valueOf(min)));
+        }
         // Vérifier si on doit démarrer / ajuster le countdown
         verifierConditionsLancement();
     }
@@ -228,12 +233,11 @@ public class GameManager {
      * prend le relais (qui écrase level/exp à chaque tick).
      */
     private void afficherBarreAttente(int nb, int min) {
-        int manquants = Math.max(0, min - nb);
         float progression = min > 0 ? (float) nb / min : 0f;
         for (UUID uuid : session.getJoueursDansLobby()) {
             Player joueur = Bukkit.getPlayer(uuid);
             if (joueur == null) continue;
-            joueur.setLevel(manquants);
+            joueur.setLevel(nb); // nombre de joueurs actuellement présents (monte vers le minimum)
             joueur.setExp(Math.max(0f, Math.min(1f, progression)));
         }
     }
