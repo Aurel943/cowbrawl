@@ -1,0 +1,61 @@
+# =========================================================
+#  config.yml — Configuration générale de CowBrawl
+# =========================================================
+
+mysql:
+  host: "127.0.0.1"
+  port: 3306
+  database: "plugin2_db"
+  utilisateur: "root"
+  mot-de-passe: ""
+  pool:
+    taille-max: 5
+    taille-min-idle: 1
+    timeout-connexion-ms: 10000
+    timeout-idle-ms: 600000
+    duree-vie-max-ms: 1800000
+
+# Nom du serveur Hub tel que déclaré dans velocity.toml
+hub:
+  nom-serveur: "hub"
+
+arena:
+  monde: "cowbrawl_world"
+  lobby-spawn:
+    x: 0.5
+    y: 100.0
+    z: 0.5
+    yaw: 0.0
+    pitch: 0.0
+  # 8 points de spawn dans l'arène — à ajuster après construction
+  spawns:
+    - {x: 5.5,  y: 64.0, z: 0.5,  yaw: 270.0, pitch: 0.0}
+    - {x: -4.5, y: 64.0, z: 0.5,  yaw: 90.0,  pitch: 0.0}
+    - {x: 0.5,  y: 64.0, z: 5.5,  yaw: 180.0, pitch: 0.0}
+    - {x: 0.5,  y: 64.0, z: -4.5, yaw: 0.0,   pitch: 0.0}
+    - {x: 4.5,  y: 64.0, z: 4.5,  yaw: 225.0, pitch: 0.0}
+    - {x: -3.5, y: 64.0, z: 4.5,  yaw: 135.0, pitch: 0.0}
+    - {x: 4.5,  y: 64.0, z: -3.5, yaw: 315.0, pitch: 0.0}
+    - {x: -3.5, y: 64.0, z: -3.5, yaw: 45.0,  pitch: 0.0}
+  # Zone de spawn des blocs dans l'arène
+  blocs-zone:
+    x-min: -6
+    x-max: 6
+    z-min: -6
+    z-max: 6
+    y: 65.5
+
+game:
+  min-joueurs: 2
+  max-joueurs: 8
+  seuil-joueurs-rapide: 4
+  countdown-rapide-secondes: 20
+  countdown-lent-secondes: 60
+  blocs-pour-gagner: 15
+  bloc-spawn-interval-ticks: 60
+  bloc-detection-radius: 1.5
+  fin-partie-delai-secondes: 10
+
+rewards:
+  victoire-cristaux: 50
+  participation-cristaux: 10
