@@ -15,6 +15,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.generator.ChunkGenerator;
 import org.bukkit.plugin.java.JavaPlugin;
 
+
 import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -58,6 +59,7 @@ public class CowBrawl extends JavaPlugin {
         getServer().getPluginManager().registerEvents(new PlayerJoinListener(this), this);
         getServer().getPluginManager().registerEvents(new ProtectionListener(this), this);
         getServer().getPluginManager().registerEvents(new KnockbackListener(this), this);
+        getServer().getPluginManager().registerEvents(new CowSteeringListener(this), this);
 
         // 6. Enregistrer la commande
         var cmd = getCommand("cowbrawl");
@@ -110,8 +112,10 @@ public class CowBrawl extends JavaPlugin {
     private void genererMonde() {
         String nomMonde = getConfig().getString("arena.monde", "cowbrawl_world");
 
-        if (getServer().getWorld(nomMonde) != null) {
+        World monde = getServer().getWorld(nomMonde);
+        if (monde != null) {
             getLogger().info("Monde '" + nomMonde + "' déjà chargé.");
+            appliquerReglesMonde(monde);
             return;
         }
 
@@ -119,17 +123,29 @@ public class CowBrawl extends JavaPlugin {
         creator.generator(new VoidGenerator());
         creator.generateStructures(false);
 
-        World monde = getServer().createWorld(creator);
+        monde = getServer().createWorld(creator);
         if (monde != null) {
-            monde.setGameRule(org.bukkit.GameRule.DO_DAYLIGHT_CYCLE, false);
-            monde.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
-            monde.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, false);
-            monde.setGameRule(org.bukkit.GameRule.ANNOUNCE_ADVANCEMENTS, false);
-            monde.setTime(6000);
+            appliquerReglesMonde(monde);
             getLogger().info("Monde vide '" + nomMonde + "' généré avec succès.");
         } else {
             getLogger().severe("Échec de la génération du monde '" + nomMonde + "' !");
         }
+    }
+
+    /**
+     * Applique les règles figées du monde (heure, météo, mob spawn...).
+     * Appelée à CHAQUE démarrage, que le monde soit nouvellement créé ou
+     * simplement rechargé depuis le disque — sinon une météo sauvegardée
+     * (pluie) reste bloquée indéfiniment au redémarrage suivant.
+     */
+    private void appliquerReglesMonde(World monde) {
+        monde.setGameRule(GameRules.ADVANCE_TIME, false);
+        monde.setGameRule(GameRules.ADVANCE_WEATHER, false);
+        monde.setGameRule(GameRules.SPAWN_MOBS, false);
+        monde.setGameRule(GameRules.SHOW_ADVANCEMENT_MESSAGES, false);
+        monde.setTime(6000);
+        monde.setStorm(false);
+        monde.setThundering(false);
     }
 
     // ---------------------------------------------------------------

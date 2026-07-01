@@ -146,9 +146,9 @@ public class CowBrawlDatabase {
      */
     public void ajouterCristaux(UUID uuid, int montant) {
         String sql = """
-            INSERT INTO economy (uuid, solde)
+            INSERT INTO economy (uuid, balance)
             VALUES (?, ?)
-            ON DUPLICATE KEY UPDATE solde = solde + VALUES(solde);
+            ON DUPLICATE KEY UPDATE balance = balance + VALUES(balance);
         """;
         executerUpdate(sql, uuid.toString(), montant);
     }

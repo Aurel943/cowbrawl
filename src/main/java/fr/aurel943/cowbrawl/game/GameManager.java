@@ -9,6 +9,11 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitTask;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
+import net.kyori.adventure.title.Title;
+import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
 
 import java.util.*;
 import java.util.logging.Logger;
@@ -33,6 +38,9 @@ public class GameManager {
     private BukkitTask tacheBlocs = null;
     private BukkitTask tacheDetection = null;
     private BukkitTask tacheFin = null;
+    private BukkitTask tacheDeplacement = null;
+    private final Map<UUID, org.bukkit.Input> derniersInputs = new ConcurrentHashMap<>();
+    private final CowBrawlScoreboardManager scoreboardManager = new CowBrawlScoreboardManager(this);
 
     // Valeur courante du countdown (en secondes)
     private int secondesRestantes = 0;
@@ -217,6 +225,7 @@ public class GameManager {
     private void demarrerCountdown(int secondes) {
         etat = GameState.STARTING;
         secondesRestantes = secondes;
+        final int secondesTotal = secondes;
 
         tacheCountdown = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             if (secondesRestantes <= 0) {
@@ -225,14 +234,21 @@ public class GameManager {
                 return;
             }
 
-            // Annoncer aux intervalles clés
             if (secondesRestantes <= 5 || secondesRestantes == 10 || secondesRestantes == 30 || secondesRestantes == 60) {
                 diffuserLobby(getMessage("lobby.countdown")
                         .replace("{temps}", String.valueOf(secondesRestantes)));
             }
 
+            float progression = secondesTotal > 0 ? (float) secondesRestantes / secondesTotal : 0f;
+            for (UUID uuid : session.getJoueursDansLobby()) {
+                Player joueur = Bukkit.getPlayer(uuid);
+                if (joueur == null) continue;
+                joueur.setLevel(secondesRestantes);
+                joueur.setExp(Math.max(0f, Math.min(1f, progression)));
+            }
+
             secondesRestantes--;
-        }, 0L, 20L); // toutes les secondes
+        }, 0L, 20L);
     }
 
     private void annulerCountdown() {
@@ -241,6 +257,13 @@ public class GameManager {
             tacheCountdown = null;
         }
         secondesRestantes = 0;
+        for (UUID uuid : session.getJoueursDansLobby()) {
+            Player joueur = Bukkit.getPlayer(uuid);
+            if (joueur != null) {
+                joueur.setLevel(0);
+                joueur.setExp(0f);
+            }
+        }
     }
 
     // ---------------------------------------------------------------
@@ -283,18 +306,21 @@ public class GameManager {
 
             // Spawner la vache et monter le joueur dessus
             Cow vache = spawn.getWorld().spawn(spawn, Cow.class, c -> {
-                c.setAI(true);
+                // IA désactivée : on pilote entièrement la vache à la main via
+                // deplacerVaches() (tacheDeplacement) — voir CowSteeringListener pour
+                // la capture de l'input joueur (WASD/sprint).
+                c.setAI(false);
                 c.setInvulnerable(true);
                 c.setSilent(false);
                 c.setCustomNameVisible(false);
-                // Empêcher la vache de bouger seule
-                c.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED).setBaseValue(0.0);
             });
             vache.addPassenger(joueur);
             session.associerVache(uuid, vache);
 
             joueur.sendMessage(getMessage("prefix") + getMessage("game.debut")
                     .replace("{objectif}", String.valueOf(objectif)));
+
+            scoreboardManager.afficher(joueur);
         }
 
         // Démarrer le spawner de blocs
@@ -304,6 +330,78 @@ public class GameManager {
         double rayon = plugin.getConfig().getDouble("game.bloc-detection-radius", 1.5);
         tacheDetection = Bukkit.getScheduler().runTaskTimer(plugin, () ->
                 plugin.getBlockSpawner().verifierCollectes(this, rayon), 0L, 10L);
+
+        // Démarrer le déplacement des vaches (toutes les ticks, pour rester fluide)
+        tacheDeplacement = Bukkit.getScheduler().runTaskTimer(plugin, this::deplacerVaches, 0L, 1L);
+
+        scoreboardManager.mettreAJourTous(session);
+    }
+
+    /**
+     * Applique à chaque tick la vélocité horizontale de chaque vache en
+     * fonction du dernier input reçu de son passager (voir CowSteeringListener)
+     * et de la direction où il regarde (son yaw). La composante Y (gravité)
+     * est toujours préservée, jamais écrasée.
+     */
+    private void deplacerVaches() {
+        if (etat != GameState.IN_GAME) return;
+
+        double vitesseBase = plugin.getConfig().getDouble("game.vache-vitesse", 0.35);
+        double multSprint = plugin.getConfig().getDouble("game.vache-vitesse-sprint-multiplicateur", 1.6);
+
+        for (Map.Entry<UUID, Cow> entree : session.getVaches().entrySet()) {
+            UUID uuid = entree.getKey();
+            Cow vache = entree.getValue();
+            if (vache == null || vache.isDead()) continue;
+
+            Player joueur = Bukkit.getPlayer(uuid);
+            if (joueur == null || !joueur.isOnline()) continue;
+
+            org.bukkit.Input input = derniersInputs.get(uuid);
+            if (input == null || (!input.isForward() && !input.isBackward()
+                    && !input.isLeft() && !input.isRight())) {
+                // Pas d'input directionnel : on stoppe le mouvement horizontal
+                // sans toucher à la composante Y (chute).
+                org.bukkit.util.Vector actuelle = vache.getVelocity();
+                vache.setVelocity(new org.bukkit.util.Vector(0, actuelle.getY(), 0));
+                continue;
+            }
+
+            double avant = (input.isForward() ? 1 : 0) - (input.isBackward() ? 1 : 0);
+            double cote = (input.isLeft() ? 1 : 0) - (input.isRight() ? 1 : 0);
+
+            double yawRad = Math.toRadians(joueur.getLocation().getYaw());
+            double dirX = -Math.sin(yawRad);
+            double dirZ = Math.cos(yawRad);
+            double droiteX = Math.cos(yawRad);
+            double droiteZ = Math.sin(yawRad);
+
+            double vitesse = vitesseBase * (input.isSprint() ? multSprint : 1.0);
+
+            double vx = dirX * avant + droiteX * cote;
+            double vz = dirZ * avant + droiteZ * cote;
+
+            double longueur = Math.sqrt(vx * vx + vz * vz);
+            if (longueur > 0.0001) {
+                vx = (vx / longueur) * vitesse;
+                vz = (vz / longueur) * vitesse;
+            }
+
+            org.bukkit.util.Vector actuelle = vache.getVelocity();
+            vache.setVelocity(new org.bukkit.util.Vector(vx, actuelle.getY(), vz));
+
+            // Rotation visuelle de la vache dans la direction du déplacement
+            vache.setRotation(joueur.getLocation().getYaw(), 0);
+        }
+    }
+
+    /** Appelé depuis CowSteeringListener à chaque changement d'input du joueur. */
+    public void enregistrerInput(UUID uuid, org.bukkit.Input input) {
+        derniersInputs.put(uuid, input);
+    }
+
+    public int getObjectifBlocs() {
+        return plugin.getConfig().getInt("game.blocs-pour-gagner", 15);
     }
 
     // ---------------------------------------------------------------
@@ -326,6 +424,18 @@ public class GameManager {
 
         joueur.playSound(joueur.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 1f, 1.2f);
 
+        int seuilAlerte = plugin.getConfig().getInt("game.titre-alerte-blocs", 10);
+        if (score == seuilAlerte && score < objectif) {
+            Component titre = LegacyComponentSerializer.legacySection().deserialize(
+                    getMessage("game.alerte-blocs-titre").replace("{blocs}", String.valueOf(score)));
+            Component sousTitre = LegacyComponentSerializer.legacySection().deserialize(
+                    getMessage("game.alerte-blocs-sous-titre").replace("{restant}", String.valueOf(objectif - score)));
+            joueur.showTitle(Title.title(titre, sousTitre,
+                    Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(2), Duration.ofMillis(500))));
+        }
+
+        scoreboardManager.mettreAJourTous(session);
+
         if (score >= objectif) {
             terminerPartie(joueur);
         }
@@ -342,6 +452,7 @@ public class GameManager {
         // Arrêter les tâches de jeu
         plugin.getBlockSpawner().arreter();
         if (tacheDetection != null) { tacheDetection.cancel(); tacheDetection = null; }
+        if (tacheDeplacement != null) { tacheDeplacement.cancel(); tacheDeplacement = null; }
 
         // Supprimer tous les blocs restants
         plugin.getBlockSpawner().nettoyerBlocs();
@@ -442,14 +553,24 @@ public class GameManager {
         plugin.getBlockSpawner().arreter();
         plugin.getBlockSpawner().nettoyerBlocs();
 
+        plugin.getBlockSpawner().arreter();
+        plugin.getBlockSpawner().nettoyerBlocs();
+        if (tacheDetection != null) { tacheDetection.cancel(); tacheDetection = null; }
+        if (tacheDeplacement != null) { tacheDeplacement.cancel(); tacheDeplacement = null; }
+        for (UUID uuid : session.getJoueursEnJeu()) {
+            Player joueur = Bukkit.getPlayer(uuid);
+            if (joueur != null) scoreboardManager.retirer(joueur);
+
         // Supprimer les vaches restantes
         for (UUID uuid : session.getJoueursEnJeu()) {
             supprimerVache(uuid);
+
         }
 
+        derniersInputs.clear();
         session.reset();
         etat = GameState.WAITING;
-        logger.info("CowBrawl réinitialisé — en attente de joueurs.");
+        logger.info("Partie annulée — plus aucun joueur en jeu.");
     }
 
     // ---------------------------------------------------------------
@@ -478,6 +599,8 @@ public class GameManager {
         joueur.setHealth(joueur.getAttribute(org.bukkit.attribute.Attribute.MAX_HEALTH).getValue());
         joueur.setFoodLevel(20);
         joueur.setSaturation(20f);
+        joueur.setLevel(0);
+        joueur.setExp(0f);
 
         // Bâton de knockback (slot 0)
         ItemStack baton = new ItemStack(Material.STICK);

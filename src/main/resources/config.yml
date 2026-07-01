@@ -55,7 +55,11 @@ game:
   bloc-spawn-interval-ticks: 60
   bloc-detection-radius: 1.5
   fin-partie-delai-secondes: 10
+  vache-vitesse: 0.35
+  vache-vitesse-sprint-multiplicateur: 1.6
+  titre-alerte-blocs: 10
 
 rewards:
   victoire-cristaux: 50
   participation-cristaux: 10
+
