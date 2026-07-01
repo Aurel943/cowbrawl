@@ -1,0 +1,16 @@
+name: CowBrawl
+version: 1.0-SNAPSHOT
+main: fr.aurel943.cowbrawl.CowBrawl
+api-version: "1.21"
+description: Mini-jeu CowBrawl — collecte de blocs sur vache en arène
+
+commands:
+  cowbrawl:
+    description: Commandes d'administration CowBrawl
+    usage: /cowbrawl <start|stop|status>
+    permission: cowbrawl.admin
+
+permissions:
+  cowbrawl.admin:
+    description: Accès aux commandes d'administration CowBrawl
+    default: op

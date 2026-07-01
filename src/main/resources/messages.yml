@@ -1,0 +1,25 @@
+# =========================================================
+#  messages.yml — Messages joueurs CowBrawl
+# =========================================================
+
+prefix: "&6[&eCowBrawl&6] &r"
+
+lobby:
+  bienvenue: "&aTu as rejoint la file d'attente ! &7({joueurs}/{max} joueurs)"
+  joueur-rejoint: "&e{joueur} &7a rejoint l'arène. &6({joueurs}/{max})"
+  joueur-parti: "&e{joueur} &7a quitté l'arène. &6({joueurs}/{max})"
+  countdown: "&eLa partie commence dans &6{temps} seconde(s)&e !"
+  countdown-reset: "&7Countdown réinitialisé — en attente de joueurs supplémentaires."
+  attente-joueurs: "&7En attente de joueurs... &e({joueurs}/{max})"
+  pas-assez-joueurs: "&cPas assez de joueurs pour lancer la partie &7(minimum {min})."
+  partie-en-cours: "&cUne partie est déjà en cours, reviens plus tard !"
+  lobby-plein: "&cLe lobby est plein &7(maximum {max} joueurs)."
+
+game:
+  debut: "&aLa partie commence ! &7Collecte &6{objectif} blocs &7pour gagner."
+  bloc-collecte: "&aTu as collecté un bloc ! &6({blocs}/{objectif})"
+  victoire: "&6&l{joueur} &e&la remporté la partie avec &6{blocs} blocs &e&l!"
+  victoire-cristaux: "&aVictoire ! Tu remportes &6{cristaux} Cristaux&a."
+  participation-cristaux: "&7Tu remportes &6{cristaux} Cristaux &7pour ta participation."
+  retour-hub: "&7Retour au Hub dans &e{temps} seconde(s)&7..."
+  retour-hub-lit: "&7Utilise le &elit &7dans ton inventaire pour retourner au Hub."
