@@ -39,10 +39,10 @@ arena:
     - {x: -3.5, y: 64.0, z: -3.5, yaw: 45.0,  pitch: 0.0}
   # Zone de spawn des blocs dans l'arène
   blocs-zone:
-    x-min: -6
-    x-max: 6
-    z-min: -6
-    z-max: 6
+    x-min: -7
+    x-max: 7
+    z-min: -7
+    z-max: 7
     y: 65.5
 
 game:
@@ -51,15 +51,15 @@ game:
   seuil-joueurs-rapide: 4
   countdown-rapide-secondes: 20
   countdown-lent-secondes: 60
-  blocs-pour-gagner: 15
+  blocs-pour-gagner: 20
   bloc-spawn-interval-ticks: 60
   bloc-detection-radius: 1.5
   fin-partie-delai-secondes: 5
   vache-vitesse: 0.35
   vache-vitesse-sprint-multiplicateur: 1.6
-  titre-alerte-blocs: 10
+  titre-alerte-blocs: 15
 
 rewards:
-  victoire-cristaux: 50
-  participation-cristaux: 10
+  victoire-cristaux: 10
+  participation-cristaux: 0
 

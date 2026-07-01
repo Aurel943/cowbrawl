@@ -3,22 +3,24 @@ package fr.aurel943.cowbrawl.listeners;
 import fr.aurel943.cowbrawl.CowBrawl;
 import fr.aurel943.cowbrawl.game.GameState;
 import org.bukkit.Material;
+import org.bukkit.entity.Cow;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
-import org.bukkit.event.player.PlayerInteractEntityEvent;
-import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.util.Vector;
 
 /**
  * Gère le bâton de knockback.
  *
- * En mode ADVENTURE, un clic gauche sur un joueur ne déclenche pas de vrai
- * combat — on utilise PlayerInteractEntityEvent (clic droit sur entité) pour
- * simuler la poussée. Le joueur cible reçoit un vecteur de knockback calculé
- * depuis la direction de l'attaquant.
+ * Déclenché par l'attaque normale (clic gauche → EntityDamageByEntityEvent),
+ * pas par un clic droit — c'est le comportement naturel attendu par un joueur.
  *
- * Aucun dégât n'est infligé (EntityDamageEvent est annulé dans ProtectionListener).
+ * La vache étant invulnérable (setInvulnerable(true)), le knockback vanilla
+ * lié à l'enchantement Knockback du bâton ne peut jamais s'appliquer (la
+ * chaîne dégâts+knockback de Minecraft est court-circuitée dès qu'une entité
+ * est invulnérable) — on pousse donc toujours manuellement via setVelocity(),
+ * comme avant, juste déclenché par le bon événement cette fois.
  */
 public class KnockbackListener implements Listener {
 
@@ -32,22 +34,20 @@ public class KnockbackListener implements Listener {
     }
 
     @EventHandler
-    public void onInteractEntity(PlayerInteractEntityEvent event) {
+    public void onAttack(EntityDamageByEntityEvent event) {
         if (plugin.getGameManager().getEtat() != GameState.IN_GAME) return;
-        if (event.getHand() != EquipmentSlot.HAND) return;
 
-        Player attaquant = event.getPlayer();
+        if (!(event.getDamager() instanceof Player attaquant)) return;
         if (!plugin.getGameManager().getSession().estEnJeu(attaquant.getUniqueId())) return;
         if (attaquant.getInventory().getItemInMainHand().getType() != Material.STICK) return;
 
-        // La cible cliquée est presque toujours la VACHE montée par l'adversaire
-        // (c'est elle qui a la hitbox visible/cliquable), pas directement le
-        // joueur assis dessus — on gère donc les deux cas.
+        // La cible touchée est presque toujours la vache montée par l'adversaire
+        // (c'est elle qui a la hitbox), pas directement le joueur assis dessus.
         Player cible = null;
-        if (event.getRightClicked() instanceof Player p) {
+        if (event.getEntity() instanceof Player p) {
             cible = p;
-        } else if (event.getRightClicked() instanceof org.bukkit.entity.Cow vacheCliquee) {
-            for (var passager : vacheCliquee.getPassengers()) {
+        } else if (event.getEntity() instanceof Cow vacheTouchee) {
+            for (var passager : vacheTouchee.getPassengers()) {
                 if (passager instanceof Player p) {
                     cible = p;
                     break;
@@ -57,6 +57,7 @@ public class KnockbackListener implements Listener {
         if (cible == null || cible.equals(attaquant)) return;
         if (!plugin.getGameManager().getSession().estEnJeu(cible.getUniqueId())) return;
 
+        // Aucun dégât : juste la poussée
         event.setCancelled(true);
 
         Vector direction = cible.getLocation().toVector()
@@ -68,6 +69,7 @@ public class KnockbackListener implements Listener {
         var vache = plugin.getGameManager().getSession().getVache(cible.getUniqueId());
         if (vache != null && !vache.isDead()) {
             vache.setVelocity(direction);
+            plugin.getGameManager().marquerKnockback(cible.getUniqueId());
         } else {
             cible.setVelocity(direction);
         }

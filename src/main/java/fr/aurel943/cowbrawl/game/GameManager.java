@@ -38,6 +38,7 @@ public class GameManager {
     private BukkitTask tacheFin = null;
     private BukkitTask tacheDeplacement = null;
     private final Map<UUID, org.bukkit.Input> derniersInputs = new ConcurrentHashMap<>();
+    private final Map<UUID, Long> knockbackJusqua = new ConcurrentHashMap<>();
     private final CowBrawlScoreboardManager scoreboardManager = new CowBrawlScoreboardManager(this);
 
     // Valeur courante du countdown (en secondes)
@@ -377,6 +378,13 @@ public class GameManager {
         for (Map.Entry<UUID, Cow> entree : session.getVaches().entrySet()) {
             UUID uuid = entree.getKey();
             Cow vache = entree.getValue();
+            Long finKnockback = knockbackJusqua.get(uuid);
+            if (finKnockback != null) {
+                if (System.currentTimeMillis() < finKnockback) {
+                    continue; // knockback en cours : on ne touche pas à la vélocité
+                }
+                knockbackJusqua.remove(uuid);
+            }
             if (vache == null || vache.isDead()) continue;
 
             Player joueur = Bukkit.getPlayer(uuid);
@@ -423,6 +431,15 @@ public class GameManager {
     /** Appelé depuis CowSteeringListener à chaque changement d'input du joueur. */
     public void enregistrerInput(UUID uuid, org.bukkit.Input input) {
         derniersInputs.put(uuid, input);
+    }
+    /**
+     * Marque une vache comme "en knockback" pendant une courte fenêtre —
+     * deplacerVaches() ne touchera pas à sa vélocité tant que cette fenêtre
+     * n'est pas écoulée, pour laisser la poussée du bâton (KnockbackListener)
+     * produire un vrai recul au lieu d'être écrasée dès le tick suivant.
+     */
+    public void marquerKnockback(UUID uuid) {
+        knockbackJusqua.put(uuid, System.currentTimeMillis() + 400);
     }
 
     public int getObjectifBlocs() {
@@ -519,7 +536,7 @@ public class GameManager {
             }
             database.incrementerParties(uuid);
         }
-
+        knockbackJusqua.clear();
         derniersInputs.clear();
 
         // Countdown retour Hub
@@ -589,7 +606,7 @@ public class GameManager {
             joueur.setGameMode(GameMode.SPECTATOR);
             donnerLitRetour(joueur);
         }
-
+        knockbackJusqua.clear();
         derniersInputs.clear();
 
         final int[] restant = {5};
@@ -658,7 +675,7 @@ public class GameManager {
             if (joueur != null) scoreboardManager.retirer(joueur);
             supprimerVache(uuid);
         }
-
+        knockbackJusqua.clear();
         derniersInputs.clear();
         session.reset();
         etat = GameState.WAITING;
@@ -726,7 +743,7 @@ public class GameManager {
             Player joueur = Bukkit.getPlayer(uuid);
             if (joueur != null) scoreboardManager.retirer(joueur);
         }
-
+        knockbackJusqua.clear();
         derniersInputs.clear();
         session.reset();
         etat = GameState.WAITING;
