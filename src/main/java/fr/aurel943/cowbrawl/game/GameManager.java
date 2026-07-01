@@ -473,6 +473,7 @@ public class GameManager {
             if (joueur == null) continue;
 
             supprimerVache(uuid);
+            scoreboardManager.retirer(joueur);
             joueur.setGameMode(GameMode.SPECTATOR);
             donnerLitRetour(joueur);
 
@@ -488,6 +489,8 @@ public class GameManager {
             }
             database.incrementerParties(uuid);
         }
+
+        derniersInputs.clear();
 
         // Countdown retour Hub
         int delai = plugin.getConfig().getInt("game.fin-partie-delai-secondes", 10);
@@ -549,28 +552,22 @@ public class GameManager {
         if (tacheBlocs != null) { tacheBlocs.cancel(); tacheBlocs = null; }
         if (tacheDetection != null) { tacheDetection.cancel(); tacheDetection = null; }
         if (tacheFin != null) { tacheFin.cancel(); tacheFin = null; }
-
-        plugin.getBlockSpawner().arreter();
-        plugin.getBlockSpawner().nettoyerBlocs();
-
-        plugin.getBlockSpawner().arreter();
-        plugin.getBlockSpawner().nettoyerBlocs();
-        if (tacheDetection != null) { tacheDetection.cancel(); tacheDetection = null; }
         if (tacheDeplacement != null) { tacheDeplacement.cancel(); tacheDeplacement = null; }
+
+        plugin.getBlockSpawner().arreter();
+        plugin.getBlockSpawner().nettoyerBlocs();
+
+        // Retirer le scoreboard et supprimer les vaches restantes
         for (UUID uuid : session.getJoueursEnJeu()) {
             Player joueur = Bukkit.getPlayer(uuid);
             if (joueur != null) scoreboardManager.retirer(joueur);
-
-        // Supprimer les vaches restantes
-        for (UUID uuid : session.getJoueursEnJeu()) {
             supprimerVache(uuid);
-
         }
 
         derniersInputs.clear();
         session.reset();
         etat = GameState.WAITING;
-        logger.info("Partie annulée — plus aucun joueur en jeu.");
+        logger.info("Partie réinitialisée.");
     }
 
     // ---------------------------------------------------------------
@@ -627,6 +624,14 @@ public class GameManager {
         plugin.getBlockSpawner().arreter();
         plugin.getBlockSpawner().nettoyerBlocs();
         if (tacheDetection != null) { tacheDetection.cancel(); tacheDetection = null; }
+        if (tacheDeplacement != null) { tacheDeplacement.cancel(); tacheDeplacement = null; }
+
+        for (UUID uuid : session.getJoueursEnJeu()) {
+            Player joueur = Bukkit.getPlayer(uuid);
+            if (joueur != null) scoreboardManager.retirer(joueur);
+        }
+
+        derniersInputs.clear();
         session.reset();
         etat = GameState.WAITING;
         logger.info("Partie annulée — plus aucun joueur en jeu.");

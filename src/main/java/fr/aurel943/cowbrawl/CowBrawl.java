@@ -4,6 +4,7 @@ import fr.aurel943.cowbrawl.commands.CowBrawlCommand;
 import fr.aurel943.cowbrawl.database.CowBrawlDatabase;
 import fr.aurel943.cowbrawl.game.BlockSpawner;
 import fr.aurel943.cowbrawl.game.GameManager;
+import fr.aurel943.cowbrawl.listeners.CowSteeringListener;
 import fr.aurel943.cowbrawl.listeners.KnockbackListener;
 import fr.aurel943.cowbrawl.listeners.PlayerJoinListener;
 import fr.aurel943.cowbrawl.listeners.ProtectionListener;
