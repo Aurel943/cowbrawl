@@ -11,8 +11,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.scheduler.BukkitTask;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
-import net.kyori.adventure.title.Title;
-import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 
 import java.util.*;
@@ -199,8 +197,9 @@ public class GameManager {
             if (etat == GameState.STARTING) {
                 annulerCountdown();
                 diffuserLobby(getMessage("lobby.countdown-reset"));
-                etat = GameState.WAITING;
             }
+            etat = GameState.WAITING;
+            afficherBarreAttente(nb, min);
             return;
         }
 
@@ -219,6 +218,23 @@ public class GameManager {
             if (etat == GameState.WAITING) {
                 demarrerCountdown(countdownLent);
             }
+        }
+    }
+
+    /**
+     * Tant que le lobby n'a pas atteint le minimum requis (aucun countdown
+     * actif), affiche dans la barre d'XP le nombre de joueurs manquants —
+     * automatiquement remplacé par le vrai countdown dès que demarrerCountdown()
+     * prend le relais (qui écrase level/exp à chaque tick).
+     */
+    private void afficherBarreAttente(int nb, int min) {
+        int manquants = Math.max(0, min - nb);
+        float progression = min > 0 ? (float) nb / min : 0f;
+        for (UUID uuid : session.getJoueursDansLobby()) {
+            Player joueur = Bukkit.getPlayer(uuid);
+            if (joueur == null) continue;
+            joueur.setLevel(manquants);
+            joueur.setExp(Math.max(0f, Math.min(1f, progression)));
         }
     }
 
@@ -328,10 +344,13 @@ public class GameManager {
         // Démarrer le spawner de blocs
         plugin.getBlockSpawner().demarrer();
 
-        // Démarrer la détection de collecte (toutes les 10 ticks = 0.5s)
+        // Démarrer la détection de collecte (toutes les 2 ticks = 0.1s, assez
+        // fréquent pour ne pas rater un passage rapide sur un bloc maintenant que
+        // les vaches se déplacent — à 10 ticks (0.5s) c'était trop rare et une
+        // vache pouvait traverser toute la zone de détection entre deux checks)
         double rayon = plugin.getConfig().getDouble("game.bloc-detection-radius", 1.5);
         tacheDetection = Bukkit.getScheduler().runTaskTimer(plugin, () ->
-                plugin.getBlockSpawner().verifierCollectes(this, rayon), 0L, 10L);
+                plugin.getBlockSpawner().verifierCollectes(this, rayon), 0L, 2L);
 
         // Démarrer le déplacement des vaches (toutes les ticks, pour rester fluide)
         tacheDeplacement = Bukkit.getScheduler().runTaskTimer(plugin, this::deplacerVaches, 0L, 1L);
@@ -428,20 +447,16 @@ public class GameManager {
 
         int seuilAlerte = plugin.getConfig().getInt("game.titre-alerte-blocs", 10);
         if (score == seuilAlerte && score < objectif) {
-            Component titre = LegacyComponentSerializer.legacySection().deserialize(
-                    getMessage("game.alerte-blocs-titre")
+            Component message = LegacyComponentSerializer.legacySection().deserialize(
+                    getMessage("game.alerte-blocs-actionbar")
                             .replace("{joueur}", joueur.getName())
-                            .replace("{blocs}", String.valueOf(score)));
-            Component sousTitre = LegacyComponentSerializer.legacySection().deserialize(
-                    getMessage("game.alerte-blocs-sous-titre")
+                            .replace("{blocs}", String.valueOf(score))
                             .replace("{restant}", String.valueOf(objectif - score)));
-            Title titreAffiche = Title.title(titre, sousTitre,
-                    Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(2), Duration.ofMillis(500)));
 
             for (UUID autreUuid : session.getJoueursEnJeu()) {
                 if (autreUuid.equals(uuid)) continue; // exclu : celui qui vient d'atteindre le seuil
                 Player autre = Bukkit.getPlayer(autreUuid);
-                if (autre != null) autre.showTitle(titreAffiche);
+                if (autre != null) autre.sendActionBar(message);
             }
         }
 
@@ -528,16 +543,32 @@ public class GameManager {
      * voir quitterPartie()/annulerPartie() appelés quand tout le monde a quitté).
      */
     public void arreterPartie() {
-        if (etat == GameState.WAITING || etat == GameState.ENDING) return;
+        if (etat == GameState.ENDING) return;
+
+        String nomHub = plugin.getConfig().getString("hub.nom-serveur", "hub");
+
+        if (etat == GameState.WAITING) {
+            // Pas de countdown actif, mais peut-être des joueurs dans le lobby
+            for (UUID uuid : new HashSet<>(session.getJoueursDansLobby())) {
+                Player joueur = Bukkit.getPlayer(uuid);
+                if (joueur != null) envoyerVersHub(joueur, nomHub);
+            }
+            return;
+        }
 
         if (etat == GameState.STARTING) {
-            // Partie pas encore lancée : simple annulation du countdown
+            // Countdown en cours : on l'annule et on renvoie tout le monde direct
             annulerCountdown();
             diffuserLobby(getMessage("prefix") + getMessage("game.arretee-admin"));
+            for (UUID uuid : new HashSet<>(session.getJoueursDansLobby())) {
+                Player joueur = Bukkit.getPlayer(uuid);
+                if (joueur != null) envoyerVersHub(joueur, nomHub);
+            }
             etat = GameState.WAITING;
             return;
         }
 
+        // IN_GAME : flux complet spectateur -> 5s -> Hub -> reset automatique
         etat = GameState.ENDING;
         plugin.getBlockSpawner().arreter();
         plugin.getBlockSpawner().nettoyerBlocs();
@@ -667,6 +698,7 @@ public class GameManager {
         meta.addItemFlags(org.bukkit.inventory.ItemFlag.HIDE_ENCHANTS);
         baton.setItemMeta(meta);
         joueur.getInventory().setItem(0, baton);
+        joueur.getInventory().setHeldItemSlot(0); // force la sélection du slot 0 (le bâton), sinon le joueur peut avoir un autre slot déjà sélectionné et taper "dans le vide"
 
         // Lit de retour (slot 8)
         donnerLitRetour(joueur);

@@ -62,7 +62,9 @@ public class CowBrawlCommand implements CommandExecutor, TabCompleter {
 
             case "stop" -> {
                 GameState etat = plugin.getGameManager().getEtat();
-                if (etat == GameState.WAITING) {
+                boolean personnePresente = plugin.getGameManager().getSession().getNombreJoueursLobby() > 0
+                        || plugin.getGameManager().getSession().getNombreJoueursEnJeu() > 0;
+                if (etat == GameState.WAITING && !personnePresente) {
                     sender.sendMessage(ChatColor.RED + "Aucune partie en cours.");
                     return true;
                 }
