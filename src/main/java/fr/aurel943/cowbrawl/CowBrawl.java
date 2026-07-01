@@ -116,11 +116,7 @@ public class CowBrawl extends JavaPlugin {
         }
 
         WorldCreator creator = new WorldCreator(nomMonde);
-        creator.type(WorldType.FLAT);
-        // Générateur vide via chaîne de configuration Paper
-        // "minecraft:void" est le générateur intégré de Paper 1.21 — pas besoin
-        // d'un ChunkGenerator personnalisé (déprécié depuis 1.20+)
-        creator.generator("void");
+        creator.generator(new VoidGenerator());
         creator.generateStructures(false);
 
         World monde = getServer().createWorld(creator);
@@ -129,7 +125,7 @@ public class CowBrawl extends JavaPlugin {
             monde.setGameRule(org.bukkit.GameRule.DO_WEATHER_CYCLE, false);
             monde.setGameRule(org.bukkit.GameRule.DO_MOB_SPAWNING, false);
             monde.setGameRule(org.bukkit.GameRule.ANNOUNCE_ADVANCEMENTS, false);
-            monde.setTime(6000); // midi permanent
+            monde.setTime(6000);
             getLogger().info("Monde vide '" + nomMonde + "' généré avec succès.");
         } else {
             getLogger().severe("Échec de la génération du monde '" + nomMonde + "' !");
