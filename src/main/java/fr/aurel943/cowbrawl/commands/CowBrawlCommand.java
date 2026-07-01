@@ -67,7 +67,7 @@ public class CowBrawlCommand implements CommandExecutor, TabCompleter {
                     return true;
                 }
                 sender.sendMessage(ChatColor.RED + "Partie arrêtée par un administrateur.");
-                plugin.getGameManager().reset();
+                plugin.getGameManager().arreterPartie();
             }
 
             case "status" -> {

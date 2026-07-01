@@ -23,5 +23,6 @@ game:
   participation-cristaux: "&7Tu remportes &6{cristaux} Cristaux &7pour ta participation."
   retour-hub: "&7Retour au Hub dans &e{temps} seconde(s)&7..."
   retour-hub-lit: "&7Utilise le &elit &7dans ton inventaire pour retourner au Hub."
-  alerte-blocs-titre: "&6&l{blocs} BLOCS !"
-  alerte-blocs-sous-titre: "&ePlus que {restant} pour gagner !"
+  alerte-blocs-titre: "&6&l{joueur} A {blocs} BLOCS !"
+  alerte-blocs-sous-titre: "&ePlus que {restant} avant sa victoire !"
+  arretee-admin: "&cLa partie a été arrêtée par un administrateur."

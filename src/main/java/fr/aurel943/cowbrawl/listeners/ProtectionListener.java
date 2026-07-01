@@ -15,6 +15,8 @@ import org.bukkit.event.entity.FoodLevelChangeEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.entity.Cow;
+import org.bukkit.event.entity.EntityDismountEvent;
 
 /**
  * Annule tous les effets indésirables pendant le lobby et la partie :
@@ -66,6 +68,19 @@ public class ProtectionListener implements Listener {
     @EventHandler
     public void onPoserBloc(BlockPlaceEvent event) {
         if (!plugin.getGameManager().getSession().contientJoueur(event.getPlayer().getUniqueId())) return;
+        event.setCancelled(true);
+    }
+
+    // ---------------------------------------------------------------
+    // Descendre de la vache
+    // ---------------------------------------------------------------
+
+    @EventHandler
+    public void onDismount(EntityDismountEvent event) {
+        if (!(event.getEntity() instanceof Player joueur)) return;
+        if (plugin.getGameManager().getEtat() != GameState.IN_GAME) return;
+        if (!(event.getDismounted() instanceof Cow)) return;
+        if (!plugin.getGameManager().getSession().contientJoueur(joueur.getUniqueId())) return;
         event.setCancelled(true);
     }
 

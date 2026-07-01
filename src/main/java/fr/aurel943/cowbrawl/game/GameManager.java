@@ -306,13 +306,15 @@ public class GameManager {
 
             // Spawner la vache et monter le joueur dessus
             Cow vache = spawn.getWorld().spawn(spawn, Cow.class, c -> {
-                // IA désactivée : on pilote entièrement la vache à la main via
-                // deplacerVaches() (tacheDeplacement) — voir CowSteeringListener pour
-                // la capture de l'input joueur (WASD/sprint).
-                c.setAI(false);
+                // IA activée mais vitesse à 0 : empêche toute errance autonome, tout
+                // en laissant Minecraft traiter normalement la vélocité qu'on impose
+                // manuellement (déplacement + knockback). setAI(false) cassait les
+                // deux : la vélocité n'était plus appliquée sur une monture sans IA.
+                c.setAI(true);
                 c.setInvulnerable(true);
                 c.setSilent(false);
                 c.setCustomNameVisible(false);
+                c.getAttribute(org.bukkit.attribute.Attribute.MOVEMENT_SPEED).setBaseValue(0.0);
             });
             vache.addPassenger(joueur);
             session.associerVache(uuid, vache);
@@ -427,11 +429,20 @@ public class GameManager {
         int seuilAlerte = plugin.getConfig().getInt("game.titre-alerte-blocs", 10);
         if (score == seuilAlerte && score < objectif) {
             Component titre = LegacyComponentSerializer.legacySection().deserialize(
-                    getMessage("game.alerte-blocs-titre").replace("{blocs}", String.valueOf(score)));
+                    getMessage("game.alerte-blocs-titre")
+                            .replace("{joueur}", joueur.getName())
+                            .replace("{blocs}", String.valueOf(score)));
             Component sousTitre = LegacyComponentSerializer.legacySection().deserialize(
-                    getMessage("game.alerte-blocs-sous-titre").replace("{restant}", String.valueOf(objectif - score)));
-            joueur.showTitle(Title.title(titre, sousTitre,
-                    Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(2), Duration.ofMillis(500))));
+                    getMessage("game.alerte-blocs-sous-titre")
+                            .replace("{restant}", String.valueOf(objectif - score)));
+            Title titreAffiche = Title.title(titre, sousTitre,
+                    Title.Times.times(Duration.ofMillis(200), Duration.ofSeconds(2), Duration.ofMillis(500)));
+
+            for (UUID autreUuid : session.getJoueursEnJeu()) {
+                if (autreUuid.equals(uuid)) continue; // exclu : celui qui vient d'atteindre le seuil
+                Player autre = Bukkit.getPlayer(autreUuid);
+                if (autre != null) autre.showTitle(titreAffiche);
+            }
         }
 
         scoreboardManager.mettreAJourTous(session);
@@ -506,6 +517,55 @@ public class GameManager {
                 diffuserJeu(getMessage("prefix") + getMessage("game.retour-hub")
                         .replace("{temps}", String.valueOf(restant[0])));
             }
+            restant[0]--;
+        }, 0L, 20L);
+    }
+
+    /**
+     * Arrête une partie en cours suite à /cowbrawl stop : passe les joueurs
+     * en spectateur, les renvoie au Hub dans 5 secondes, puis le reset complet
+     * se déclenche automatiquement (même mécanisme que terminerPartie() —
+     * voir quitterPartie()/annulerPartie() appelés quand tout le monde a quitté).
+     */
+    public void arreterPartie() {
+        if (etat == GameState.WAITING || etat == GameState.ENDING) return;
+
+        if (etat == GameState.STARTING) {
+            // Partie pas encore lancée : simple annulation du countdown
+            annulerCountdown();
+            diffuserLobby(getMessage("prefix") + getMessage("game.arretee-admin"));
+            etat = GameState.WAITING;
+            return;
+        }
+
+        etat = GameState.ENDING;
+        plugin.getBlockSpawner().arreter();
+        plugin.getBlockSpawner().nettoyerBlocs();
+        if (tacheDetection != null) { tacheDetection.cancel(); tacheDetection = null; }
+        if (tacheDeplacement != null) { tacheDeplacement.cancel(); tacheDeplacement = null; }
+
+        diffuserJeu(getMessage("prefix") + getMessage("game.arretee-admin"));
+
+        for (UUID uuid : session.getJoueursEnJeu()) {
+            Player joueur = Bukkit.getPlayer(uuid);
+            if (joueur == null) continue;
+            supprimerVache(uuid);
+            scoreboardManager.retirer(joueur);
+            joueur.setGameMode(GameMode.SPECTATOR);
+            donnerLitRetour(joueur);
+        }
+
+        derniersInputs.clear();
+
+        final int[] restant = {5};
+        tacheFin = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            if (restant[0] <= 0) {
+                tacheFin.cancel();
+                renvoyerTousAuHub();
+                return;
+            }
+            diffuserJeu(getMessage("prefix") + getMessage("game.retour-hub")
+                    .replace("{temps}", String.valueOf(restant[0])));
             restant[0]--;
         }, 0L, 20L);
     }
