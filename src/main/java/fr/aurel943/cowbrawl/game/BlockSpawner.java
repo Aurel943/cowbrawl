@@ -8,6 +8,8 @@ import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.Particle;
+import org.bukkit.Location;
 
 import java.util.Random;
 import java.util.Set;
@@ -34,6 +36,9 @@ public class BlockSpawner {
 
     private BukkitTask tacheSpawn = null;
 
+    private BukkitTask tacheParticules = null;
+    private double angleParticules = 0;
+
     public BlockSpawner(CowBrawl plugin) {
         this.plugin = plugin;
     }
@@ -46,15 +51,22 @@ public class BlockSpawner {
         if (tacheSpawn != null) return;
 
         int intervalle = plugin.getConfig().getInt("game.bloc-spawn-interval-ticks", 60);
-
         tacheSpawn = plugin.getServer().getScheduler().runTaskTimer(plugin, this::spawnerBloc,
                 20L, intervalle);
+
+        int intervalleParticules = plugin.getConfig().getInt("game.particules-blocs.interval-ticks", 3);
+        tacheParticules = plugin.getServer().getScheduler().runTaskTimer(plugin, this::afficherParticules,
+                20L, intervalleParticules);
     }
 
     public void arreter() {
         if (tacheSpawn != null) {
             tacheSpawn.cancel();
             tacheSpawn = null;
+        }
+        if (tacheParticules != null) {
+            tacheParticules.cancel();
+            tacheParticules = null;
         }
     }
 
@@ -145,6 +157,52 @@ public class BlockSpawner {
         }
 
         blocsActifs.removeAll(aSupprimer);
+    }
+
+    // ---------------------------------------------------------------
+    // Particules autour des blocs (visibilité)
+    // ---------------------------------------------------------------
+
+    /**
+     * Fait tourner un halo de particules autour de chaque bloc actif pour
+     * le rendre visible même à distance dans l'arène. Le cercle "tourne"
+     * en incrémentant angleParticules à chaque appel, indépendamment du
+     * nombre de blocs actifs à l'instant T.
+     */
+    private void afficherParticules() {
+        World monde = plugin.getGameManager().getMonde();
+        if (monde == null) return;
+
+        var config = plugin.getConfig();
+        String typeNom = config.getString("game.particules-blocs.type", "END_ROD");
+        int nombrePoints = config.getInt("game.particules-blocs.nombre-points", 4);
+        double rayon = config.getDouble("game.particules-blocs.rayon", 0.6);
+
+        Particle particule;
+        try {
+            particule = Particle.valueOf(typeNom);
+        } catch (IllegalArgumentException e) {
+            particule = Particle.END_ROD; // fallback si mauvaise valeur dans config.yml
+        }
+
+        angleParticules += 0.2; // vitesse de rotation du halo
+
+        for (UUID standUuid : blocsActifs) {
+            var stand = monde.getEntity(standUuid);
+            if (stand == null || stand.isDead()) continue;
+
+            // +0.9 en Y pour centrer le halo au niveau de l'item tenu par
+            // l'ArmorStand, pas au niveau de ses pieds
+            Location centre = stand.getLocation().add(0, 0.9, 0);
+
+            for (int i = 0; i < nombrePoints; i++) {
+                double angle = angleParticules + (2 * Math.PI / nombrePoints) * i;
+                double x = centre.getX() + rayon * Math.cos(angle);
+                double z = centre.getZ() + rayon * Math.sin(angle);
+                Location point = new Location(monde, x, centre.getY(), z);
+                monde.spawnParticle(particule, point, 1, 0, 0, 0, 0);
+            }
+        }
     }
 
     // ---------------------------------------------------------------
